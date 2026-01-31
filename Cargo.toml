@@ -1,0 +1,19 @@
+[package]
+name = "nsv-cli"
+version = "0.0.1"
+edition = "2021"
+description = "Command-line tool for the NSV (Newline-Separated Values) format"
+license = "MIT"
+repository = "https://github.com/nsv-format/nsv-cli"
+homepage = "https://nsv-format.org"
+keywords = ["nsv", "csv", "data", "parser", "cli"]
+categories = ["command-line-utilities", "encoding", "parser-implementations"]
+authors = ["naming"]
+
+[[bin]]
+name = "nsv"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+nsv = "0.0.5"
