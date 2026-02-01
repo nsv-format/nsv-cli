@@ -63,20 +63,20 @@ echo "Running sanitize tests..."
 echo
 
 # Success cases
-run_test "CRLF normalization" 0 tests/fixtures/crlf.txt "fixed 3 Windows line endings"
-run_test "LF passthrough" 0 tests/fixtures/lf.txt
-run_test "BOM + CRLF" 0 tests/fixtures/bom_crlf.txt "stripped Windows BOM" "fixed 2 Windows line endings"
-run_test "BOM + LF" 0 tests/fixtures/bom_lf.txt "stripped Windows BOM"
-run_test "Empty file" 0 tests/fixtures/empty.txt
-run_test "No newlines" 0 tests/fixtures/no_newlines.txt
+run_test "CRLF normalization" 0 tests/fixtures/crlf.nsv "fixed 3 Windows line endings"
+run_test "LF passthrough" 0 tests/fixtures/lf.nsv
+run_test "BOM + CRLF" 0 tests/fixtures/bom_crlf.nsv "stripped Windows BOM" "fixed 2 Windows line endings"
+run_test "BOM + LF" 0 tests/fixtures/bom_lf.nsv "stripped Windows BOM"
+run_test "Empty file" 0 tests/fixtures/empty.nsv
+run_test "No newlines" 0 tests/fixtures/no_newlines.nsv
 
 # Output verification (CRLF normalized should match LF file)
-run_test_output "CRLF becomes LF" tests/fixtures/crlf.txt tests/fixtures/lf.txt
-run_test_output "LF unchanged" tests/fixtures/lf.txt tests/fixtures/lf.txt
+run_test_output "CRLF becomes LF" tests/fixtures/crlf.nsv tests/fixtures/lf.nsv
+run_test_output "LF unchanged" tests/fixtures/lf.nsv tests/fixtures/lf.nsv
 
 # Error cases
-run_test "Mixed line endings" 1 tests/fixtures/mixed.txt "mixed line endings"
-run_test "Bare CR" 1 tests/fixtures/bare_cr.txt "bare CR"
+run_test "Mixed line endings" 1 tests/fixtures/mixed.nsv "mixed line endings"
+run_test "Bare CR" 1 tests/fixtures/bare_cr.nsv "bare CR"
 
 # Stdin tests
 printf 'a\r\nb\r\n' | cargo run --quiet -- sanitize 2>/dev/null > tmp_output
