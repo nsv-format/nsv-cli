@@ -3,6 +3,9 @@
 cd "$(dirname "$0")/.."
 cargo build --quiet || exit 1
 
+TMPDIR=$(mktemp -d)
+trap 'rm -rf "$TMPDIR"' EXIT
+
 PASS=0
 FAIL=0
 
@@ -29,9 +32,9 @@ run_test() {
     done
 
     local stderr exit_code
-    cargo run --quiet -- validate "${args[@]}" "$file" 2>tmp_stderr && exit_code=0 || exit_code=$?
-    stderr=$(cat tmp_stderr)
-    rm -f tmp_stderr
+    cargo run --quiet -- validate "${args[@]}" "$file" 2>$TMPDIR/stderr && exit_code=0 || exit_code=$?
+    stderr=$(cat $TMPDIR/stderr)
+    rm -f $TMPDIR/stderr
 
     local failed=0
 
@@ -139,7 +142,7 @@ run_test "table check with warnings" 1 $F/not_a_table_with_warning.nsv --table \
 
 # ── stdin ──
 
-cargo run --quiet -- validate < $F/lf.nsv 2>tmp_stderr && exit_code=0 || exit_code=$?
+cargo run --quiet -- validate < $F/lf.nsv 2>$TMPDIR/stderr && exit_code=0 || exit_code=$?
 if [[ "$exit_code" -eq 0 ]]; then
     echo "PASS: stdin"
     PASS=$((PASS + 1))
@@ -147,7 +150,7 @@ else
     echo "FAIL: stdin - expected exit 0, got $exit_code"
     FAIL=$((FAIL + 1))
 fi
-rm -f tmp_stderr
+rm -f $TMPDIR/stderr
 
 echo
 echo "Results: $PASS passed, $FAIL failed"
