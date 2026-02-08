@@ -34,6 +34,13 @@ enum Commands {
         #[arg(long)]
         table: bool,
     },
+
+    /// Print structural statistics about NSV data
+    Stats {
+        /// Input file (reads from stdin if omitted or "-")
+        #[arg(value_name = "FILE")]
+        file: Option<String>,
+    },
 }
 
 fn main() {
@@ -52,6 +59,9 @@ fn main() {
         }
         Commands::Validate { file, table } => {
             std::process::exit(validate(file, table));
+        }
+        Commands::Stats { file } => {
+            stats(file);
         }
     }
 }
@@ -135,6 +145,44 @@ fn process_line_endings(data: &[u8], start: usize, quiet: bool) -> Result<Vec<u8
     }
 
     Ok(output)
+}
+
+/// Print structural statistics about NSV data.
+///
+/// Silently sanitizes (strip BOM, normalize CRLF) before parsing.
+/// No warnings or validation — just stats to stdout.
+fn stats(file: Option<String>) {
+    let raw = read_input(&file);
+
+    let start = if raw.starts_with(&[0xEF, 0xBB, 0xBF]) { 3 } else { 0 };
+    let clean = match process_line_endings(&raw, start, true) {
+        Ok(output) => output,
+        Err(e) => {
+            eprintln!("error: {}", e);
+            std::process::exit(1);
+        }
+    };
+    let text = String::from_utf8_lossy(&clean);
+    let rows = nsv::loads(&text);
+
+    let num_rows = rows.len();
+    let cells: usize = rows.iter().map(|r| r.len()).sum();
+    let min_arity = rows.iter().map(|r| r.len()).min().unwrap_or(0);
+    let max_arity = rows.iter().map(|r| r.len()).max().unwrap_or(0);
+    let is_table = min_arity == max_arity;
+    let max_cell_bytes = rows
+        .iter()
+        .flat_map(|r| r.iter())
+        .map(|c| c.len())
+        .max()
+        .unwrap_or(0);
+
+    println!("rows: {}", num_rows);
+    println!("cells: {}", cells);
+    println!("min_arity: {}", min_arity);
+    println!("max_arity: {}", max_arity);
+    println!("is_table: {}", is_table);
+    println!("max_cell_bytes: {}", max_cell_bytes);
 }
 
 /// Validate NSV data. Returns the process exit code.
