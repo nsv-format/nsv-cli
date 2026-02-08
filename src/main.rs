@@ -139,33 +139,30 @@ fn process_line_endings(data: &[u8], start: usize) -> Result<Vec<u8>, String> {
 
 /// Validate NSV data. Returns the process exit code.
 ///
-/// - Stage 1: encoding pre-check (BOM, CR bytes)
+/// - Stage 1: encoding warnings (BOM, CR bytes)
 /// - Stage 2: structural warnings via nsv::check()
 /// - Stage 3: table check (only with --table)
 fn validate(file: Option<String>, table: bool) -> i32 {
     let data = read_input(&file);
+    let mut exit_code = 0;
 
-    // Stage 1: encoding pre-check
-    if data.starts_with(&[0xEF, 0xBB, 0xBF]) {
-        eprintln!("error: file contains a UTF-8 BOM — run nsv sanitize to fix");
-        return 2;
-    }
-    if data.contains(&b'\r') {
-        eprintln!("error: file contains CR bytes — run nsv sanitize to fix");
-        return 2;
-    }
-
-    let text = match std::str::from_utf8(&data) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("error: invalid UTF-8: {}", e);
-            return 2;
-        }
+    // Stage 1: encoding warnings
+    let content = if data.starts_with(&[0xEF, 0xBB, 0xBF]) {
+        eprintln!("warning: file contains a UTF-8 BOM — run nsv sanitize to fix");
+        exit_code = 1;
+        &data[3..]
+    } else {
+        &data[..]
     };
+    if content.contains(&b'\r') {
+        eprintln!("warning: file contains CR bytes — run nsv sanitize to fix");
+        exit_code = 1;
+    }
+
+    let text = String::from_utf8_lossy(content);
 
     // Stage 2: structural warnings
-    let warnings = nsv::check(text);
-    let mut exit_code = 0;
+    let warnings = nsv::check(&text);
 
     for w in &warnings {
         match w.kind {
@@ -193,7 +190,7 @@ fn validate(file: Option<String>, table: bool) -> i32 {
 
     // Stage 3: table check
     if table {
-        let rows = nsv::loads(text);
+        let rows = nsv::loads(&text);
         if !rows.is_empty() {
             let arities: Vec<usize> = rows.iter().map(|r| r.len()).collect();
             let min = *arities.iter().min().unwrap();
