@@ -4,7 +4,7 @@ Command-line tool for the [NSV (Newline-Separated Values)](https://nsv-format.or
 
 ## Installation
 
-To install from crates.io, run
+To install (or update) from crates.io, run
 ```sh
 cargo install nsv-cli
 ```
