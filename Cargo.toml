@@ -16,4 +16,4 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
-nsv = "0.0.7"
+nsv = "0.0.8"
