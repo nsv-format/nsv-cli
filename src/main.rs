@@ -61,10 +61,7 @@ fn main() {
             std::process::exit(validate(file, table));
         }
         Commands::Stats { file } => {
-            if let Err(e) = stats(file) {
-                eprintln!("error: {}", e);
-                std::process::exit(1);
-            }
+            stats(file);
         }
     }
 }
@@ -154,11 +151,17 @@ fn process_line_endings(data: &[u8], start: usize, quiet: bool) -> Result<Vec<u8
 ///
 /// Silently sanitizes (strip BOM, normalize CRLF) before parsing.
 /// No warnings or validation — just stats to stdout.
-fn stats(file: Option<String>) -> Result<(), String> {
+fn stats(file: Option<String>) {
     let raw = read_input(&file);
 
     let start = if raw.starts_with(&[0xEF, 0xBB, 0xBF]) { 3 } else { 0 };
-    let clean = process_line_endings(&raw, start, true)?;
+    let clean = match process_line_endings(&raw, start, true) {
+        Ok(output) => output,
+        Err(e) => {
+            eprintln!("error: {}", e);
+            std::process::exit(1);
+        }
+    };
     let text = String::from_utf8_lossy(&clean);
     let rows = nsv::loads(&text);
 
@@ -180,8 +183,6 @@ fn stats(file: Option<String>) -> Result<(), String> {
     println!("max_arity: {}", max_arity);
     println!("is_table: {}", is_table);
     println!("max_cell_bytes: {}", max_cell_bytes);
-
-    Ok(())
 }
 
 /// Validate NSV data. Returns the process exit code.
