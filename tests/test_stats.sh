@@ -100,7 +100,7 @@ cells: 2
 min_arity: 2
 max_arity: 2
 is_table: true
-max_cell_bytes: 67"
+max_cell_bytes: 84"
 
 # ── BOM is silently stripped ──
 
