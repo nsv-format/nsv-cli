@@ -163,7 +163,7 @@ fn stats(file: Option<String>) {
         }
     };
     let text = String::from_utf8_lossy(&clean);
-    let rows = nsv::loads(&text);
+    let rows = nsv::decode(&text);
 
     let num_rows = rows.len();
     let cells: usize = rows.iter().map(|r| r.len()).sum();
@@ -281,7 +281,7 @@ fn validate(file: Option<String>, table: bool) -> i32 {
 
     // Table check
     if table {
-        let rows = nsv::loads(&text);
+        let rows = nsv::decode(&text);
         if !rows.is_empty() {
             let arities: Vec<usize> = rows.iter().map(|r| r.len()).collect();
             let min = *arities.iter().min().unwrap();
