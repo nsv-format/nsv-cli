@@ -23,6 +23,17 @@ enum Commands {
         #[arg(value_name = "FILE")]
         file: Option<String>,
     },
+
+    /// Validate NSV data: check encoding, structure, and optionally table-ness
+    Validate {
+        /// Input file (reads from stdin if omitted or "-")
+        #[arg(value_name = "FILE")]
+        file: Option<String>,
+
+        /// Check that all rows have the same length (i.e. the data forms a table)
+        #[arg(long)]
+        table: bool,
+    },
 }
 
 fn main() {
@@ -39,19 +50,13 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::Validate { file, table } => {
+            std::process::exit(validate(file, table));
+        }
     }
 }
 
-/// Sanitize NSV data.
-///
-/// - Strips UTF-8 BOM (EF BB BF)
-/// - Detects line ending style from first occurrence
-/// - Errors on bare CR or mixed line endings
-/// - Normalizes CRLF to LF
-///
-/// Currently reads the entire file,
-/// will fix once streaming is exposed in the parser
-fn sanitize(file: Option<String>) -> Result<(), String> {
+fn read_input(file: &Option<String>) -> Result<Vec<u8>, String> {
     let mut data = Vec::new();
     match file.as_deref() {
         Some(path) if path != "-" => {
@@ -66,6 +71,20 @@ fn sanitize(file: Option<String>) -> Result<(), String> {
                 .map_err(|e| format!("read error: {}", e))?;
         }
     };
+    Ok(data)
+}
+
+/// Sanitize NSV data.
+///
+/// - Strips UTF-8 BOM (EF BB BF)
+/// - Detects line ending style from first occurrence
+/// - Errors on bare CR or mixed line endings
+/// - Normalizes CRLF to LF
+///
+/// Currently reads the entire file,
+/// will fix once streaming is exposed in the parser
+fn sanitize(file: Option<String>) -> Result<(), String> {
+    let data = read_input(&file)?;
 
     let mut start = 0;
     if data.starts_with(&[0xEF, 0xBB, 0xBF]) {
@@ -116,4 +135,84 @@ fn process_line_endings(data: &[u8], start: usize) -> Result<Vec<u8>, String> {
     }
 
     Ok(output)
+}
+
+/// Validate NSV data. Returns the process exit code.
+///
+/// - Stage 1: encoding pre-check (BOM, CR bytes)
+/// - Stage 2: structural warnings via nsv::check()
+/// - Stage 3: table check (only with --table)
+fn validate(file: Option<String>, table: bool) -> i32 {
+    let data = match read_input(&file) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("error: {}", e);
+            return 1;
+        }
+    };
+
+    // Stage 1: encoding pre-check
+    if data.starts_with(&[0xEF, 0xBB, 0xBF]) {
+        eprintln!("error: file contains a UTF-8 BOM — run nsv sanitize to fix");
+        return 2;
+    }
+    if data.contains(&b'\r') {
+        eprintln!("error: file contains CR bytes — run nsv sanitize to fix");
+        return 2;
+    }
+
+    let text = match std::str::from_utf8(&data) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("error: invalid UTF-8: {}", e);
+            return 2;
+        }
+    };
+
+    // Stage 2: structural warnings
+    let warnings = nsv::check(text);
+    let mut exit_code = 0;
+
+    for w in &warnings {
+        match w.kind {
+            nsv::WarningKind::UnknownEscape(b) => {
+                eprintln!(
+                    "warning: unknown escape sequence '\\{}' (line {}, col {})",
+                    b as char, w.line, w.col
+                );
+            }
+            nsv::WarningKind::DanglingBackslash => {
+                eprintln!(
+                    "warning: dangling backslash (line {}, col {})",
+                    w.line, w.col
+                );
+            }
+            nsv::WarningKind::NoTerminalLf => {
+                eprintln!(
+                    "warning: missing terminal newline (line {}, col {})",
+                    w.line, w.col
+                );
+            }
+        }
+        exit_code = 1;
+    }
+
+    // Stage 3: table check
+    if table {
+        let rows = nsv::loads(text);
+        if !rows.is_empty() {
+            let arities: Vec<usize> = rows.iter().map(|r| r.len()).collect();
+            let min = *arities.iter().min().unwrap();
+            let max = *arities.iter().max().unwrap();
+            if min != max {
+                eprintln!(
+                    "error: not a table — row arities vary (min {}, max {})",
+                    min, max
+                );
+                exit_code = 1;
+            }
+        }
+    }
+
+    exit_code
 }
