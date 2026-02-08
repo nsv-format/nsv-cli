@@ -162,8 +162,7 @@ fn stats(file: Option<String>) {
             std::process::exit(1);
         }
     };
-    let text = String::from_utf8_lossy(&clean);
-    let rows = nsv::loads(&text);
+    let rows = nsv::decode_bytes(&clean);
 
     let num_rows = rows.len();
     let cells: usize = rows.iter().map(|r| r.len()).sum();
@@ -218,10 +217,8 @@ fn validate(file: Option<String>, table: bool) -> i32 {
         exit_code = 1;
     }
 
-    let text = String::from_utf8_lossy(&clean);
-
     // Structural warnings — check() reports byte offsets into the clean data
-    let warnings = nsv::check(&text);
+    let warnings = nsv::check(&clean);
 
     // Convert a 1-indexed byte column to a 1-indexed character column,
     // assuming UTF-8. Returns None if the bytes aren't valid UTF-8.
@@ -281,7 +278,7 @@ fn validate(file: Option<String>, table: bool) -> i32 {
 
     // Table check
     if table {
-        let rows = nsv::loads(&text);
+        let rows = nsv::decode_bytes(&clean);
         if !rows.is_empty() {
             let arities: Vec<usize> = rows.iter().map(|r| r.len()).collect();
             let min = *arities.iter().min().unwrap();
