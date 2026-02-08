@@ -91,10 +91,7 @@ fn sanitize(file: Option<String>) -> Result<(), String> {
         eprintln!("stripped Windows BOM");
         start = 3;
     }
-    let (output, crlf_count) = process_line_endings(&data, start)?;
-    if crlf_count > 0 {
-        eprintln!("fixed {} Windows line endings", crlf_count);
-    }
+    let output = process_line_endings(&data, start, false)?;
     io::stdout()
         .write_all(&output)
         .map_err(|e| format!("write error: {}", e))?;
@@ -102,8 +99,7 @@ fn sanitize(file: Option<String>) -> Result<(), String> {
 }
 
 /// Infers style from first line ending, errors on bare CR or mixed styles.
-/// Returns (sanitized bytes, number of CRLFs normalized).
-fn process_line_endings(data: &[u8], start: usize) -> Result<(Vec<u8>, u64), String> {
+fn process_line_endings(data: &[u8], start: usize, quiet: bool) -> Result<Vec<u8>, String> {
     let mut output = Vec::with_capacity(data.len() - start);
     let mut first_crlf: Option<usize> = None;
     let mut first_lf: Option<usize> = None;
@@ -134,7 +130,11 @@ fn process_line_endings(data: &[u8], start: usize) -> Result<(Vec<u8>, u64), Str
         i += 1;
     }
 
-    Ok((output, crlf_count))
+    if !quiet && crlf_count > 0 {
+        eprintln!("fixed {} Windows line endings", crlf_count);
+    }
+
+    Ok(output)
 }
 
 /// Validate NSV data. Returns the process exit code.
@@ -151,19 +151,21 @@ fn validate(file: Option<String>, table: bool) -> i32 {
     let had_bom = raw.starts_with(&[0xEF, 0xBB, 0xBF]);
     let start = if had_bom { 3 } else { 0 };
 
-    let (clean, crlf_count) = match process_line_endings(&raw, start) {
-        Ok(result) => result,
+    let clean = match process_line_endings(&raw, start, true) {
+        Ok(output) => output,
         Err(e) => {
             eprintln!("error: {}", e);
             return 1;
         }
     };
 
+    let had_crlf = clean.len() < raw.len() - start;
+
     if had_bom {
         eprintln!("warning: file contains a UTF-8 BOM — run nsv sanitize to fix");
         exit_code = 1;
     }
-    if crlf_count > 0 {
+    if had_crlf {
         eprintln!("warning: file contains CRLF line endings — run nsv sanitize to fix");
         exit_code = 1;
     }
@@ -177,7 +179,7 @@ fn validate(file: Option<String>, table: bool) -> i32 {
         // Character column (1-indexed) from byte column, assuming UTF-8
         let char_col = byte_col_to_char_col(clean.as_slice(), w.line, w.col);
         // Original byte offset: account for stripped BOM and removed CRs
-        let original_byte = w.pos + start + (w.line - 1) * (crlf_count > 0) as usize;
+        let original_byte = w.pos + start + (w.line - 1) * had_crlf as usize;
 
         let location = match char_col {
             Some(cc) => format!("line {}, col {}, byte {}", w.line, cc, original_byte),
