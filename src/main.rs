@@ -175,9 +175,40 @@ fn validate(file: Option<String>, table: bool) -> i32 {
     // Structural warnings — check() reports byte offsets into the clean data
     let warnings = nsv::check(&text);
 
+    // Convert a 1-indexed byte column to a 1-indexed character column,
+    // assuming UTF-8. Returns None if the bytes aren't valid UTF-8.
+    let byte_col_to_char_col = |line: usize, byte_col: usize| -> Option<usize> {
+        let line_start = if line == 1 {
+            0
+        } else {
+            let mut current = 1;
+            let mut pos = 0;
+            for (i, &b) in clean.iter().enumerate() {
+                if b == b'\n' {
+                    current += 1;
+                    if current == line {
+                        pos = i + 1;
+                        break;
+                    }
+                }
+            }
+            if current < line {
+                return None;
+            }
+            pos
+        };
+
+        let end = line_start + byte_col;
+        if end > clean.len() {
+            return None;
+        }
+        std::str::from_utf8(&clean[line_start..end])
+            .ok()
+            .map(|s| s.chars().count())
+    };
+
     for w in &warnings {
-        // Character column (1-indexed) from byte column, assuming UTF-8
-        let char_col = byte_col_to_char_col(clean.as_slice(), w.line, w.col);
+        let char_col = byte_col_to_char_col(w.line, w.col);
         // Original byte offset: account for stripped BOM and removed CRs
         let original_byte = w.pos + start + (w.line - 1) * had_crlf as usize;
 
@@ -218,37 +249,4 @@ fn validate(file: Option<String>, table: bool) -> i32 {
     }
 
     exit_code
-}
-
-/// Convert a 1-indexed byte column (from nsv::check) to a 1-indexed
-/// character column, assuming UTF-8. Returns None if the slice isn't
-/// valid UTF-8 up to that point.
-fn byte_col_to_char_col(clean: &[u8], line: usize, byte_col: usize) -> Option<usize> {
-    let line_start = if line == 1 {
-        0
-    } else {
-        let mut current = 1;
-        let mut pos = 0;
-        for (i, &b) in clean.iter().enumerate() {
-            if b == b'\n' {
-                current += 1;
-                if current == line {
-                    pos = i + 1;
-                    break;
-                }
-            }
-        }
-        if current < line {
-            return None;
-        }
-        pos
-    };
-
-    let end = line_start + byte_col;
-    if end > clean.len() {
-        return None;
-    }
-    std::str::from_utf8(&clean[line_start..end])
-        .ok()
-        .map(|s| s.chars().count())
 }
