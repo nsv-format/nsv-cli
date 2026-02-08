@@ -91,7 +91,10 @@ fn sanitize(file: Option<String>) -> Result<(), String> {
         eprintln!("stripped Windows BOM");
         start = 3;
     }
-    let output = process_line_endings(&data, start)?;
+    let (output, crlf_count) = process_line_endings(&data, start)?;
+    if crlf_count > 0 {
+        eprintln!("fixed {} Windows line endings", crlf_count);
+    }
     io::stdout()
         .write_all(&output)
         .map_err(|e| format!("write error: {}", e))?;
@@ -99,7 +102,8 @@ fn sanitize(file: Option<String>) -> Result<(), String> {
 }
 
 /// Infers style from first line ending, errors on bare CR or mixed styles.
-fn process_line_endings(data: &[u8], start: usize) -> Result<Vec<u8>, String> {
+/// Returns (sanitized bytes, number of CRLFs normalized).
+fn process_line_endings(data: &[u8], start: usize) -> Result<(Vec<u8>, u64), String> {
     let mut output = Vec::with_capacity(data.len() - start);
     let mut first_crlf: Option<usize> = None;
     let mut first_lf: Option<usize> = None;
@@ -130,65 +134,71 @@ fn process_line_endings(data: &[u8], start: usize) -> Result<Vec<u8>, String> {
         i += 1;
     }
 
-    if crlf_count > 0 {
-        eprintln!("fixed {} Windows line endings", crlf_count);
-    }
-
-    Ok(output)
+    Ok((output, crlf_count))
 }
 
 /// Validate NSV data. Returns the process exit code.
 ///
-/// - Stage 1: encoding warnings (BOM, CR bytes)
-/// - Stage 2: structural warnings via nsv::check()
-/// - Stage 3: table check (only with --table)
+/// Sanitizes internally (strip BOM, normalize CRLF) so that structural
+/// checks run on clean data and reported positions match what the user
+/// would see after `nsv sanitize`. Corruption is detected from the
+/// length delta and reported as warnings.
 fn validate(file: Option<String>, table: bool) -> i32 {
-    let data = read_input(&file);
+    let raw = read_input(&file);
     let mut exit_code = 0;
 
-    // Stage 1: encoding warnings
-    let content = if data.starts_with(&[0xEF, 0xBB, 0xBF]) {
+    // Internal sanitization
+    let had_bom = raw.starts_with(&[0xEF, 0xBB, 0xBF]);
+    let start = if had_bom { 3 } else { 0 };
+
+    let (clean, crlf_count) = match process_line_endings(&raw, start) {
+        Ok(result) => result,
+        Err(e) => {
+            eprintln!("error: {}", e);
+            return 1;
+        }
+    };
+
+    if had_bom {
         eprintln!("warning: file contains a UTF-8 BOM — run nsv sanitize to fix");
         exit_code = 1;
-        &data[3..]
-    } else {
-        &data[..]
-    };
-    if content.contains(&b'\r') {
-        eprintln!("warning: file contains CR bytes — run nsv sanitize to fix");
+    }
+    if crlf_count > 0 {
+        eprintln!("warning: file contains CRLF line endings — run nsv sanitize to fix");
         exit_code = 1;
     }
 
-    let text = String::from_utf8_lossy(content);
+    let text = String::from_utf8_lossy(&clean);
 
-    // Stage 2: structural warnings
+    // Structural warnings — check() reports byte offsets into the clean data
     let warnings = nsv::check(&text);
 
     for w in &warnings {
+        // Character column (1-indexed) from byte column, assuming UTF-8
+        let char_col = byte_col_to_char_col(clean.as_slice(), w.line, w.col);
+        // Original byte offset: account for stripped BOM and removed CRs
+        let original_byte = w.pos + start + (w.line - 1) * (crlf_count > 0) as usize;
+
+        let location = match char_col {
+            Some(cc) => format!("line {}, col {}, byte {}", w.line, cc, original_byte),
+            None => format!("line {}, byte {}", w.line, original_byte),
+        };
+
         match w.kind {
             nsv::WarningKind::UnknownEscape(b) => {
-                eprintln!(
-                    "warning: unknown escape sequence '\\{}' (line {}, col {})",
-                    b as char, w.line, w.col
-                );
+                eprintln!("warning: unknown escape sequence '\\{}' ({})", b as char, location);
             }
             nsv::WarningKind::DanglingBackslash => {
-                eprintln!(
-                    "warning: dangling backslash (line {}, col {})",
-                    w.line, w.col
-                );
+                eprintln!("warning: dangling backslash ({})", location);
             }
             nsv::WarningKind::NoTerminalLf => {
-                eprintln!(
-                    "warning: missing terminal newline (line {}, col {})",
-                    w.line, w.col
-                );
+                eprintln!("warning: missing terminal newline ({})", location);
             }
         }
         exit_code = 1;
     }
 
-    // Stage 3: table check
+    // Table check
     if table {
         let rows = nsv::loads(&text);
         if !rows.is_empty() {
@@ -206,4 +216,37 @@ fn validate(file: Option<String>, table: bool) -> i32 {
     }
 
     exit_code
+}
+
+/// Convert a 1-indexed byte column (from nsv::check) to a 1-indexed
+/// character column, assuming UTF-8. Returns None if the slice isn't
+/// valid UTF-8 up to that point.
+fn byte_col_to_char_col(clean: &[u8], line: usize, byte_col: usize) -> Option<usize> {
+    let line_start = if line == 1 {
+        0
+    } else {
+        let mut current = 1;
+        let mut pos = 0;
+        for (i, &b) in clean.iter().enumerate() {
+            if b == b'\n' {
+                current += 1;
+                if current == line {
+                    pos = i + 1;
+                    break;
+                }
+            }
+        }
+        if current < line {
+            return None;
+        }
+        pos
+    };
+
+    let end = line_start + byte_col;
+    if end > clean.len() {
+        return None;
+    }
+    std::str::from_utf8(&clean[line_start..end])
+        .ok()
+        .map(|s| s.chars().count())
 }
