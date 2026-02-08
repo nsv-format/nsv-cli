@@ -162,14 +162,7 @@ fn stats(file: Option<String>) {
             std::process::exit(1);
         }
     };
-    let text = match std::str::from_utf8(&clean) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("error: invalid UTF-8 at byte {}", e.valid_up_to());
-            std::process::exit(1);
-        }
-    };
-    let rows = nsv::decode(text);
+    let rows = nsv::decode_bytes(&clean);
 
     let num_rows = rows.len();
     let cells: usize = rows.iter().map(|r| r.len()).sum();
@@ -290,9 +283,9 @@ fn validate(file: Option<String>, table: bool) -> i32 {
         exit_code = 1;
     }
 
-    // Table check
+    // Table check — pure structure, no need for string decoding
     if table {
-        let rows = nsv::decode(&text);
+        let rows = nsv::decode_bytes(&clean);
         if !rows.is_empty() {
             let arities: Vec<usize> = rows.iter().map(|r| r.len()).collect();
             let min = *arities.iter().min().unwrap();
