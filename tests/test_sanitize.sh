@@ -3,6 +3,9 @@
 cd "$(dirname "$0")/.."
 cargo build --quiet || exit 1
 
+TMPDIR=$(mktemp -d)
+trap 'rm -rf "$TMPDIR"' EXIT
+
 PASS=0
 FAIL=0
 
@@ -14,9 +17,9 @@ run_test() {
     local expected_stderr=("$@")
 
     local output stderr exit_code
-    output=$(cargo run --quiet -- sanitize "$input" 2>tmp_stderr) && exit_code=0 || exit_code=$?
-    stderr=$(cat tmp_stderr)
-    rm -f tmp_stderr
+    output=$(cargo run --quiet -- sanitize "$input" 2>$TMPDIR/stderr) && exit_code=0 || exit_code=$?
+    stderr=$(cat $TMPDIR/stderr)
+    rm -f $TMPDIR/stderr
 
     local failed=0
 
@@ -46,17 +49,17 @@ run_test_output() {
     local input="$2"
     local expected_file="$3"
 
-    cargo run --quiet -- sanitize "$input" 2>/dev/null > tmp_output
+    cargo run --quiet -- sanitize "$input" 2>/dev/null > $TMPDIR/output
 
-    if diff -q tmp_output "$expected_file" > /dev/null 2>&1; then
+    if diff -q $TMPDIR/output "$expected_file" > /dev/null 2>&1; then
         echo "PASS: $name"
         PASS=$((PASS + 1))
     else
         echo "FAIL: $name - output mismatch"
-        diff tmp_output "$expected_file"
+        diff $TMPDIR/output "$expected_file"
         FAIL=$((FAIL + 1))
     fi
-    rm -f tmp_output
+    rm -f $TMPDIR/output
 }
 
 echo "Running sanitize tests..."
@@ -79,9 +82,9 @@ run_test "Mixed line endings" 1 tests/fixtures/mixed.nsv "mixed line endings"
 run_test "Bare CR" 1 tests/fixtures/bare_cr.nsv "bare CR"
 
 # Stdin tests
-printf 'a\r\nb\r\n' | cargo run --quiet -- sanitize 2>/dev/null > tmp_output
-printf 'a\nb\n' > tmp_expected
-if diff -q tmp_output tmp_expected > /dev/null 2>&1; then
+printf 'a\r\nb\r\n' | cargo run --quiet -- sanitize 2>/dev/null > $TMPDIR/output
+printf 'a\nb\n' > $TMPDIR/expected
+if diff -q $TMPDIR/output $TMPDIR/expected > /dev/null 2>&1; then
     echo "PASS: stdin"
     PASS=$((PASS + 1))
 else
@@ -89,16 +92,14 @@ else
     FAIL=$((FAIL + 1))
 fi
 
-printf 'a\r\nb\r\n' | cargo run --quiet -- sanitize - 2>/dev/null > tmp_output
-if diff -q tmp_output tmp_expected > /dev/null 2>&1; then
+printf 'a\r\nb\r\n' | cargo run --quiet -- sanitize - 2>/dev/null > $TMPDIR/output
+if diff -q $TMPDIR/output $TMPDIR/expected > /dev/null 2>&1; then
     echo "PASS: stdin with dash"
     PASS=$((PASS + 1))
 else
     echo "FAIL: stdin with dash"
     FAIL=$((FAIL + 1))
 fi
-rm -f tmp_output tmp_expected
-
 echo
 echo "Results: $PASS passed, $FAIL failed"
 [[ "$FAIL" -eq 0 ]]

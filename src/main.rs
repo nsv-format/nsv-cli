@@ -23,6 +23,17 @@ enum Commands {
         #[arg(value_name = "FILE")]
         file: Option<String>,
     },
+
+    /// Validate NSV data: check encoding, structure, and optionally table-ness
+    Validate {
+        /// Input file (reads from stdin if omitted or "-")
+        #[arg(value_name = "FILE")]
+        file: Option<String>,
+
+        /// Check that all rows have the same length (i.e. the data forms a table)
+        #[arg(long)]
+        table: bool,
+    },
 }
 
 fn main() {
@@ -39,7 +50,28 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::Validate { file, table } => {
+            std::process::exit(validate(file, table));
+        }
     }
+}
+
+fn read_input(file: &Option<String>) -> Vec<u8> {
+    let mut data = Vec::new();
+    match file.as_deref() {
+        Some(path) if path != "-" => {
+            File::open(path)
+                .unwrap_or_else(|e| panic!("cannot open '{}': {}", path, e))
+                .read_to_end(&mut data)
+                .unwrap_or_else(|e| panic!("read error: {}", e));
+        }
+        _ => {
+            io::stdin()
+                .read_to_end(&mut data)
+                .unwrap_or_else(|e| panic!("read error: {}", e));
+        }
+    };
+    data
 }
 
 /// Sanitize NSV data.
@@ -52,27 +84,14 @@ fn main() {
 /// Currently reads the entire file,
 /// will fix once streaming is exposed in the parser
 fn sanitize(file: Option<String>) -> Result<(), String> {
-    let mut data = Vec::new();
-    match file.as_deref() {
-        Some(path) if path != "-" => {
-            let mut f =
-                File::open(path).map_err(|e| format!("cannot open '{}': {}", path, e))?;
-            f.read_to_end(&mut data)
-                .map_err(|e| format!("read error: {}", e))?;
-        }
-        _ => {
-            io::stdin()
-                .read_to_end(&mut data)
-                .map_err(|e| format!("read error: {}", e))?;
-        }
-    };
+    let data = read_input(&file);
 
     let mut start = 0;
     if data.starts_with(&[0xEF, 0xBB, 0xBF]) {
         eprintln!("stripped Windows BOM");
         start = 3;
     }
-    let output = process_line_endings(&data, start)?;
+    let output = process_line_endings(&data, start, false)?;
     io::stdout()
         .write_all(&output)
         .map_err(|e| format!("write error: {}", e))?;
@@ -80,7 +99,7 @@ fn sanitize(file: Option<String>) -> Result<(), String> {
 }
 
 /// Infers style from first line ending, errors on bare CR or mixed styles.
-fn process_line_endings(data: &[u8], start: usize) -> Result<Vec<u8>, String> {
+fn process_line_endings(data: &[u8], start: usize, quiet: bool) -> Result<Vec<u8>, String> {
     let mut output = Vec::with_capacity(data.len() - start);
     let mut first_crlf: Option<usize> = None;
     let mut first_lf: Option<usize> = None;
@@ -111,9 +130,123 @@ fn process_line_endings(data: &[u8], start: usize) -> Result<Vec<u8>, String> {
         i += 1;
     }
 
-    if crlf_count > 0 {
+    if !quiet && crlf_count > 0 {
         eprintln!("fixed {} Windows line endings", crlf_count);
     }
 
     Ok(output)
+}
+
+/// Validate NSV data. Returns the process exit code.
+///
+/// Sanitizes internally (strip BOM, normalize CRLF) so that structural
+/// checks run on clean data and reported positions match what the user
+/// would see after `nsv sanitize`. Corruption is detected from the
+/// length delta and reported as warnings.
+fn validate(file: Option<String>, table: bool) -> i32 {
+    let raw = read_input(&file);
+    let mut exit_code = 0;
+
+    // Internal sanitization
+    let had_bom = raw.starts_with(&[0xEF, 0xBB, 0xBF]);
+    let start = if had_bom { 3 } else { 0 };
+
+    let clean = match process_line_endings(&raw, start, true) {
+        Ok(output) => output,
+        Err(e) => {
+            eprintln!("error: {}", e);
+            return 1;
+        }
+    };
+
+    let had_crlf = clean.len() < raw.len() - start;
+
+    if had_bom {
+        eprintln!("warning: file contains a UTF-8 BOM — run nsv sanitize to fix");
+        exit_code = 1;
+    }
+    if had_crlf {
+        eprintln!("warning: file contains CRLF line endings — run nsv sanitize to fix");
+        exit_code = 1;
+    }
+
+    let text = String::from_utf8_lossy(&clean);
+
+    // Structural warnings — check() reports byte offsets into the clean data
+    let warnings = nsv::check(&text);
+
+    // Convert a 1-indexed byte column to a 1-indexed character column,
+    // assuming UTF-8. Returns None if the bytes aren't valid UTF-8.
+    let byte_col_to_char_col = |line: usize, byte_col: usize| -> Option<usize> {
+        let line_start = if line == 1 {
+            0
+        } else {
+            let mut current = 1;
+            let mut pos = 0;
+            for (i, &b) in clean.iter().enumerate() {
+                if b == b'\n' {
+                    current += 1;
+                    if current == line {
+                        pos = i + 1;
+                        break;
+                    }
+                }
+            }
+            if current < line {
+                return None;
+            }
+            pos
+        };
+
+        let end = line_start + byte_col;
+        if end > clean.len() {
+            return None;
+        }
+        std::str::from_utf8(&clean[line_start..end])
+            .ok()
+            .map(|s| s.chars().count())
+    };
+
+    for w in &warnings {
+        let char_col = byte_col_to_char_col(w.line, w.col);
+        // Original byte offset: account for stripped BOM and removed CRs
+        let original_byte = w.pos + start + (w.line - 1) * had_crlf as usize;
+
+        let location = match char_col {
+            Some(cc) => format!("line {}, col {}, byte {}", w.line, cc, original_byte),
+            None => format!("line {}, byte {}", w.line, original_byte),
+        };
+
+        match w.kind {
+            nsv::WarningKind::UnknownEscape(b) => {
+                eprintln!("warning: unknown escape sequence '\\{}' ({})", b as char, location);
+            }
+            nsv::WarningKind::DanglingBackslash => {
+                eprintln!("warning: dangling backslash ({})", location);
+            }
+            nsv::WarningKind::NoTerminalLf => {
+                eprintln!("warning: missing terminal newline ({})", location);
+            }
+        }
+        exit_code = 1;
+    }
+
+    // Table check
+    if table {
+        let rows = nsv::loads(&text);
+        if !rows.is_empty() {
+            let arities: Vec<usize> = rows.iter().map(|r| r.len()).collect();
+            let min = *arities.iter().min().unwrap();
+            let max = *arities.iter().max().unwrap();
+            if min != max {
+                eprintln!(
+                    "error: not a table — row arities vary (min {}, max {})",
+                    min, max
+                );
+                exit_code = 1;
+            }
+        }
+    }
+
+    exit_code
 }
