@@ -217,16 +217,8 @@ fn validate(file: Option<String>, table: bool) -> i32 {
         exit_code = 1;
     }
 
-    let text = match std::str::from_utf8(&clean) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("error: invalid UTF-8 at byte {}", e.valid_up_to() + start);
-            return 1;
-        }
-    };
-
     // Structural warnings — check() reports byte offsets into the clean data
-    let warnings = nsv::check(text);
+    let warnings = nsv::check(&clean);
 
     // Convert a 1-indexed byte column to a 1-indexed character column.
     let byte_col_to_char_col = |line: usize, byte_col: usize| -> Option<usize> {

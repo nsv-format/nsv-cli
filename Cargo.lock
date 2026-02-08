@@ -149,9 +149,9 @@ checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
 
 [[package]]
 name = "nsv"
-version = "0.0.7"
+version = "0.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5e5687d1850e5f0b39c072493b9d38320f4dba14551710f916d802e38e7c188"
+checksum = "e06c3ea6bd000528b0fd5bc193032918c70779aac13bdacd07f7e550512dee4a"
 dependencies = [
  "memchr",
  "rayon",
