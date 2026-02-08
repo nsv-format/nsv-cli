@@ -162,8 +162,14 @@ fn stats(file: Option<String>) {
             std::process::exit(1);
         }
     };
-    let text = String::from_utf8_lossy(&clean);
-    let rows = nsv::decode(&text);
+    let text = match std::str::from_utf8(&clean) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("error: invalid UTF-8 at byte {}", e.valid_up_to());
+            std::process::exit(1);
+        }
+    };
+    let rows = nsv::decode(text);
 
     let num_rows = rows.len();
     let cells: usize = rows.iter().map(|r| r.len()).sum();
@@ -218,13 +224,18 @@ fn validate(file: Option<String>, table: bool) -> i32 {
         exit_code = 1;
     }
 
-    let text = String::from_utf8_lossy(&clean);
+    let text = match std::str::from_utf8(&clean) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("error: invalid UTF-8 at byte {}", e.valid_up_to() + start);
+            return 1;
+        }
+    };
 
     // Structural warnings — check() reports byte offsets into the clean data
-    let warnings = nsv::check(&text);
+    let warnings = nsv::check(text);
 
-    // Convert a 1-indexed byte column to a 1-indexed character column,
-    // assuming UTF-8. Returns None if the bytes aren't valid UTF-8.
+    // Convert a 1-indexed byte column to a 1-indexed character column.
     let byte_col_to_char_col = |line: usize, byte_col: usize| -> Option<usize> {
         let line_start = if line == 1 {
             0
