@@ -72,7 +72,7 @@ max_arity: 4
 is_table: true
 max_cell_bytes: 1"
 
-# ── 2×2 table (existing fixture) ──
+# ── 2×2 table ──
 
 run_test "2x2 table" $F/table.nsv \
 "rows: 2
