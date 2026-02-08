@@ -56,22 +56,22 @@ fn main() {
     }
 }
 
-fn read_input(file: &Option<String>) -> Result<Vec<u8>, String> {
+fn read_input(file: &Option<String>) -> Vec<u8> {
     let mut data = Vec::new();
     match file.as_deref() {
         Some(path) if path != "-" => {
-            let mut f =
-                File::open(path).map_err(|e| format!("cannot open '{}': {}", path, e))?;
-            f.read_to_end(&mut data)
-                .map_err(|e| format!("read error: {}", e))?;
+            File::open(path)
+                .unwrap_or_else(|e| panic!("cannot open '{}': {}", path, e))
+                .read_to_end(&mut data)
+                .unwrap_or_else(|e| panic!("read error: {}", e));
         }
         _ => {
             io::stdin()
                 .read_to_end(&mut data)
-                .map_err(|e| format!("read error: {}", e))?;
+                .unwrap_or_else(|e| panic!("read error: {}", e));
         }
     };
-    Ok(data)
+    data
 }
 
 /// Sanitize NSV data.
@@ -84,7 +84,7 @@ fn read_input(file: &Option<String>) -> Result<Vec<u8>, String> {
 /// Currently reads the entire file,
 /// will fix once streaming is exposed in the parser
 fn sanitize(file: Option<String>) -> Result<(), String> {
-    let data = read_input(&file)?;
+    let data = read_input(&file);
 
     let mut start = 0;
     if data.starts_with(&[0xEF, 0xBB, 0xBF]) {
@@ -143,13 +143,7 @@ fn process_line_endings(data: &[u8], start: usize) -> Result<Vec<u8>, String> {
 /// - Stage 2: structural warnings via nsv::check()
 /// - Stage 3: table check (only with --table)
 fn validate(file: Option<String>, table: bool) -> i32 {
-    let data = match read_input(&file) {
-        Ok(d) => d,
-        Err(e) => {
-            eprintln!("error: {}", e);
-            return 1;
-        }
-    };
+    let data = read_input(&file);
 
     // Stage 1: encoding pre-check
     if data.starts_with(&[0xEF, 0xBB, 0xBF]) {

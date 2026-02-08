@@ -149,8 +149,9 @@ checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
 
 [[package]]
 name = "nsv"
-version = "0.0.5"
-source = "git+https://github.com/nsv-format/nsv-rust.git#27431920b71581691d2e53bde3a1d34ae5851802"
+version = "0.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "21f665b8c0de6df42934e4aa74b103ae3f2211665309b4d185ddcfce85d94ef6"
 dependencies = [
  "memchr",
  "rayon",
