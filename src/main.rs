@@ -41,6 +41,15 @@ enum Commands {
         #[arg(value_name = "FILE")]
         file: Option<String>,
     },
+
+    /// Transpose rows and columns of NSV data
+    #[command(alias = "t")]
+    Transpose {
+        /// Input file (reads from stdin if omitted or "-")
+        #[arg(value_name = "FILE")]
+        file: Option<String>,
+    },
+
 }
 
 fn main() {
@@ -62,6 +71,12 @@ fn main() {
         }
         Commands::Stats { file } => {
             stats(file);
+        }
+        Commands::Transpose { file } => {
+            if let Err(e) = transpose(file) {
+                eprintln!("error: {}", e);
+                std::process::exit(1);
+            }
         }
     }
 }
@@ -295,3 +310,52 @@ fn validate(file: Option<String>, table: bool) -> i32 {
 
     exit_code
 }
+
+/// Transpose rows and columns of NSV data.
+///
+/// Requires table input (all rows must have equal arity).
+/// Errors on ragged data.
+fn transpose(file: Option<String>) -> Result<(), String> {
+    let raw = read_input(&file);
+
+    // Split into raw lines (already-escaped cell bytes).
+    // Group by blank lines into rows of raw cell slices.
+    let mut rows: Vec<Vec<&[u8]>> = Vec::new();
+    let mut current_row: Vec<&[u8]> = Vec::new();
+    for line in raw.split(|&b| b == b'\n') {
+        if line.is_empty() {
+            if !current_row.is_empty() {
+                rows.push(current_row);
+                current_row = Vec::new();
+            }
+        } else {
+            current_row.push(line);
+        }
+    }
+    if !current_row.is_empty() {
+        rows.push(current_row);
+    }
+
+    if rows.is_empty() {
+        return Ok(());
+    }
+
+    let arity = rows[0].len();
+    if rows.iter().any(|r| r.len() != arity) {
+        return Err("not a table — row arities differ".to_string());
+    }
+    if arity == 0 {
+        return Ok(());
+    }
+
+    let mut out = io::BufWriter::new(io::stdout().lock());
+    for col in 0..arity {
+        for row in &rows {
+            out.write_all(row[col]).map_err(|e| e.to_string())?;
+            out.write_all(b"\n").map_err(|e| e.to_string())?;
+        }
+        out.write_all(b"\n").map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+

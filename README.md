@@ -49,6 +49,20 @@ The `validate` command:
 - with `--table`, checks that all rows have equal length
 - Exits with 0 on success, 1 on warnings or errors
 
+### Transpose
+
+Transpose a table.  
+Both `t` and `transpose` are valid, prefer the latter for long-living scripts.
+
+```sh
+nsv t table.nsv
+cat table.nsv | nsv t
+```
+
+The `transpose` command:
+- Requires table input (all rows must have equal arity), errors on ragged data
+- Allocates full input in memory (once, but still)
+
 ### Stats
 
 Structural overview of an NSV file.
