@@ -313,7 +313,7 @@ fn validate(file: Option<String>, table: bool) -> i32 {
 /// Errors on ragged data.
 fn transpose(file: Option<String>) {
     let raw = read_input(&file);
-    let mut rows = nsv::decode_bytes(&raw);
+    let rows = nsv::decode_bytes(&raw);
     if rows.is_empty() {
         return;
     }
@@ -327,16 +327,17 @@ fn transpose(file: Option<String>) {
         return;
     }
 
-    let nrows = rows.len();
-    let mut transposed: Vec<Vec<Vec<u8>>> = (0..arity).map(|_| Vec::with_capacity(nrows)).collect();
-    for row in rows.drain(..) {
-        for (c, cell) in row.into_iter().enumerate() {
-            transposed[c].push(cell);
+    let stdout = io::stdout();
+    let mut out = stdout.lock();
+    for col in 0..arity {
+        for row in &rows {
+            out.write_all(&nsv::escape_bytes(&row[col]))
+                .unwrap_or_else(|e| panic!("write error: {}", e));
+            out.write_all(b"\n")
+                .unwrap_or_else(|e| panic!("write error: {}", e));
         }
+        out.write_all(b"\n")
+            .unwrap_or_else(|e| panic!("write error: {}", e));
     }
-
-    io::stdout()
-        .write_all(&nsv::encode_bytes(&transposed))
-        .unwrap_or_else(|e| panic!("write error: {}", e));
 }
 
