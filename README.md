@@ -51,15 +51,17 @@ The `validate` command:
 
 ### Transpose
 
+Transpose a table.  
+Both `t` and `transpose` are valid, prefer the latter for long-living scripts.
+
 ```sh
 nsv t table.nsv
 cat table.nsv | nsv t
 ```
 
 The `transpose` command:
-- Requires table input (all rows must have equal arity)
-- Errors on ragged data
-- Is its own inverse: `nsv t | nsv t` recovers the original
+- Requires table input (all rows must have equal arity), errors on ragged data
+- Allocates full input in memory (once, but still)
 
 ### Stats
 
