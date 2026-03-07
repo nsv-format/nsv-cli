@@ -43,6 +43,7 @@ enum Commands {
     },
 
     /// Transpose rows and columns of NSV data
+    #[command(alias = "t")]
     Transpose {
         /// Input file (reads from stdin if omitted or "-")
         #[arg(value_name = "FILE")]
