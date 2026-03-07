@@ -318,21 +318,17 @@ fn transpose(file: Option<String>) {
         return;
     }
 
-    let min = rows.iter().map(|r| r.len()).min().unwrap();
-    let max = rows.iter().map(|r| r.len()).max().unwrap();
-    if min != max {
-        eprintln!(
-            "error: not a table — row arities vary (min {}, max {})",
-            min, max
-        );
+    let arity = rows[0].len();
+    if rows.iter().any(|r| r.len() != arity) {
+        eprintln!("error: not a table — row arities differ");
         std::process::exit(1);
     }
-    if max == 0 {
+    if arity == 0 {
         return;
     }
 
     let nrows = rows.len();
-    let mut transposed: Vec<Vec<Vec<u8>>> = (0..max).map(|_| Vec::with_capacity(nrows)).collect();
+    let mut transposed: Vec<Vec<Vec<u8>>> = (0..arity).map(|_| Vec::with_capacity(nrows)).collect();
     for row in rows.drain(..) {
         for (c, cell) in row.into_iter().enumerate() {
             transposed[c].push(cell);
