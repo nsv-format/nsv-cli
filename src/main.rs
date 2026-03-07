@@ -313,7 +313,25 @@ fn validate(file: Option<String>, table: bool) -> i32 {
 /// Errors on ragged data.
 fn transpose(file: Option<String>) {
     let raw = read_input(&file);
-    let rows = nsv::decode_bytes(&raw);
+
+    // Split into raw lines (already-escaped cell bytes).
+    // Group by blank lines into rows of raw cell slices.
+    let mut rows: Vec<Vec<&[u8]>> = Vec::new();
+    let mut current_row: Vec<&[u8]> = Vec::new();
+    for line in raw.split(|&b| b == b'\n') {
+        if line.is_empty() {
+            if !current_row.is_empty() {
+                rows.push(current_row);
+                current_row = Vec::new();
+            }
+        } else {
+            current_row.push(line);
+        }
+    }
+    if !current_row.is_empty() {
+        rows.push(current_row);
+    }
+
     if rows.is_empty() {
         return;
     }
@@ -330,7 +348,7 @@ fn transpose(file: Option<String>) {
     let mut out = io::BufWriter::new(io::stdout().lock());
     for col in 0..arity {
         for row in &rows {
-            out.write_all(&nsv::escape_bytes(&row[col]))
+            out.write_all(row[col])
                 .unwrap_or_else(|e| panic!("write error: {}", e));
             out.write_all(b"\n")
                 .unwrap_or_else(|e| panic!("write error: {}", e));
