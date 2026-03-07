@@ -327,8 +327,7 @@ fn transpose(file: Option<String>) {
         return;
     }
 
-    let stdout = io::stdout();
-    let mut out = stdout.lock();
+    let mut out = io::BufWriter::new(io::stdout().lock());
     for col in 0..arity {
         for row in &rows {
             out.write_all(&nsv::escape_bytes(&row[col]))
