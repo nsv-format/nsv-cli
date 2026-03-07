@@ -313,38 +313,31 @@ fn validate(file: Option<String>, table: bool) -> i32 {
 /// Errors on ragged data.
 fn transpose(file: Option<String>) {
     let raw = read_input(&file);
-
-    let start = if raw.starts_with(&[0xEF, 0xBB, 0xBF]) { 3 } else { 0 };
-    let clean = match process_line_endings(&raw, start, true) {
-        Ok(output) => output,
-        Err(e) => {
-            eprintln!("error: {}", e);
-            std::process::exit(1);
-        }
-    };
-
-    let rows = nsv::decode_bytes(&clean);
+    let mut rows = nsv::decode_bytes(&raw);
     if rows.is_empty() {
         return;
     }
 
-    let min_arity = rows.iter().map(|r| r.len()).min().unwrap_or(0);
-    let max_arity = rows.iter().map(|r| r.len()).max().unwrap_or(0);
-    if min_arity != max_arity {
+    let min = rows.iter().map(|r| r.len()).min().unwrap();
+    let max = rows.iter().map(|r| r.len()).max().unwrap();
+    if min != max {
         eprintln!(
             "error: not a table — row arities vary (min {}, max {})",
-            min_arity, max_arity
+            min, max
         );
         std::process::exit(1);
     }
-
-    if max_arity == 0 {
+    if max == 0 {
         return;
     }
 
-    let transposed: Vec<Vec<Vec<u8>>> = (0..max_arity)
-        .map(|col| rows.iter().map(|row| row[col].clone()).collect())
-        .collect();
+    let nrows = rows.len();
+    let mut transposed: Vec<Vec<Vec<u8>>> = (0..max).map(|_| Vec::with_capacity(nrows)).collect();
+    for row in rows.drain(..) {
+        for (c, cell) in row.into_iter().enumerate() {
+            transposed[c].push(cell);
+        }
+    }
 
     io::stdout()
         .write_all(&nsv::encode_bytes(&transposed))
