@@ -52,8 +52,8 @@ The `validate` command:
 ### Transpose
 
 ```sh
-nsv transpose table.nsv
-cat table.nsv | nsv transpose
+nsv t table.nsv
+cat table.nsv | nsv t
 ```
 
 The `transpose` command:
