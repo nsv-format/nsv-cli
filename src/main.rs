@@ -72,7 +72,12 @@ fn main() {
             stats(file);
         }
         Commands::Transpose { file } => {
-            transpose(file);
+            if let Err(e) = transpose(file) {
+                if e.kind() != io::ErrorKind::BrokenPipe {
+                    eprintln!("write error: {}", e);
+                    std::process::exit(1);
+                }
+            }
         }
     }
 }
@@ -311,7 +316,7 @@ fn validate(file: Option<String>, table: bool) -> i32 {
 ///
 /// Requires table input (all rows must have equal arity).
 /// Errors on ragged data.
-fn transpose(file: Option<String>) {
+fn transpose(file: Option<String>) -> io::Result<()> {
     let raw = read_input(&file);
 
     // Split into raw lines (already-escaped cell bytes).
@@ -333,7 +338,7 @@ fn transpose(file: Option<String>) {
     }
 
     if rows.is_empty() {
-        return;
+        return Ok(());
     }
 
     let arity = rows[0].len();
@@ -342,19 +347,17 @@ fn transpose(file: Option<String>) {
         std::process::exit(1);
     }
     if arity == 0 {
-        return;
+        return Ok(());
     }
 
     let mut out = io::BufWriter::new(io::stdout().lock());
     for col in 0..arity {
         for row in &rows {
-            out.write_all(row[col])
-                .unwrap_or_else(|e| panic!("write error: {}", e));
-            out.write_all(b"\n")
-                .unwrap_or_else(|e| panic!("write error: {}", e));
+            out.write_all(row[col])?;
+            out.write_all(b"\n")?;
         }
-        out.write_all(b"\n")
-            .unwrap_or_else(|e| panic!("write error: {}", e));
+        out.write_all(b"\n")?;
     }
+    Ok(())
 }
 
