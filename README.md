@@ -59,7 +59,7 @@ cat table.nsv | nsv t
 The `transpose` command:
 - Requires table input (all rows must have equal arity)
 - Errors on ragged data
-- Is its own inverse: `nsv transpose | nsv transpose` recovers the original
+- Is its own inverse: `nsv t | nsv t` recovers the original
 
 ### Stats
 
