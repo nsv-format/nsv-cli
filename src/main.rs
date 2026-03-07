@@ -41,6 +41,14 @@ enum Commands {
         #[arg(value_name = "FILE")]
         file: Option<String>,
     },
+
+    /// Transpose rows and columns of NSV data
+    Transpose {
+        /// Input file (reads from stdin if omitted or "-")
+        #[arg(value_name = "FILE")]
+        file: Option<String>,
+    },
+
 }
 
 fn main() {
@@ -62,6 +70,9 @@ fn main() {
         }
         Commands::Stats { file } => {
             stats(file);
+        }
+        Commands::Transpose { file } => {
+            transpose(file);
         }
     }
 }
@@ -295,3 +306,48 @@ fn validate(file: Option<String>, table: bool) -> i32 {
 
     exit_code
 }
+
+/// Transpose rows and columns of NSV data.
+///
+/// Requires table input (all rows must have equal arity).
+/// Errors on ragged data.
+fn transpose(file: Option<String>) {
+    let raw = read_input(&file);
+
+    let start = if raw.starts_with(&[0xEF, 0xBB, 0xBF]) { 3 } else { 0 };
+    let clean = match process_line_endings(&raw, start, true) {
+        Ok(output) => output,
+        Err(e) => {
+            eprintln!("error: {}", e);
+            std::process::exit(1);
+        }
+    };
+
+    let rows = nsv::decode_bytes(&clean);
+    if rows.is_empty() {
+        return;
+    }
+
+    let min_arity = rows.iter().map(|r| r.len()).min().unwrap_or(0);
+    let max_arity = rows.iter().map(|r| r.len()).max().unwrap_or(0);
+    if min_arity != max_arity {
+        eprintln!(
+            "error: not a table — row arities vary (min {}, max {})",
+            min_arity, max_arity
+        );
+        std::process::exit(1);
+    }
+
+    if max_arity == 0 {
+        return;
+    }
+
+    let transposed: Vec<Vec<Vec<u8>>> = (0..max_arity)
+        .map(|col| rows.iter().map(|row| row[col].clone()).collect())
+        .collect();
+
+    io::stdout()
+        .write_all(&nsv::encode_bytes(&transposed))
+        .unwrap_or_else(|e| panic!("write error: {}", e));
+}
+
