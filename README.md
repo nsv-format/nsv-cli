@@ -51,8 +51,6 @@ The `validate` command:
 
 ### Transpose
 
-Swap rows and columns.
-
 ```sh
 nsv transpose table.nsv
 cat table.nsv | nsv transpose
@@ -61,7 +59,7 @@ cat table.nsv | nsv transpose
 The `transpose` command:
 - Requires table input (all rows must have equal arity)
 - Errors on ragged data
-- Is its own inverse: `transpose(transpose(x)) == x`
+- Is its own inverse: `nsv transpose | nsv transpose` recovers the original
 
 ### Stats
 
