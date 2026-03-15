@@ -92,7 +92,6 @@ max_cell_bytes
 ### Lift / Unlift
 
 Apply or reverse NSV escaping on each line.
-Both `l`/`u` and `lift`/`unlift` are valid, prefer the latter for long-living scripts.
 
 ```sh
 # Lift: escape each line (empty lines become \, backslashes double, etc.)
