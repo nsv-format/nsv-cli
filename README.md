@@ -65,14 +65,50 @@ The `transpose` command:
 
 ### Stats
 
-Structural overview of an NSV file.
+Structural overview of an NSV file. Output is itself NSV (2-column key-value table).
 
 ```sh
 $ nsv stats data.nsv
-rows: 3
-cells: 12
-min_arity: 4
-max_arity: 4
-is_table: true
-max_cell_bytes: 1
+rows
+3
+
+cells
+12
+
+min_arity
+4
+
+max_arity
+4
+
+is_table
+true
+
+max_cell_bytes
+1
+
 ```
+
+### Lift / Unlift
+
+Apply or reverse NSV escaping on each line.
+
+```sh
+# Lift: escape each line (empty lines become \, backslashes double, etc.)
+nsv lift data.nsv
+
+# Unlift: unescape each line (inverse of lift)
+nsv unlift data.nsv
+
+# Roundtrip: unlift(lift(x)) == x
+nsv lift data.nsv | nsv unlift
+```
+
+The `lift` command:
+- Applies `escape` to each line of input
+- Turns empty lines into `\` (the NSV empty cell token)
+- Is the line-level equivalent of the lift operation from the [ENSV spec](https://github.com/nsv-format/nsv/blob/master/ensv.md)
+
+The `unlift` command:
+- Applies `unescape` to each line of input
+- Is the exact inverse of `lift`
