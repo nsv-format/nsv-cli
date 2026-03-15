@@ -65,14 +65,25 @@ The `transpose` command:
 
 ### Stats
 
-Structural overview of an NSV file.
+Structural overview of an NSV file. Output is itself NSV — a 2-column table of key-value pairs.
 
 ```sh
 $ nsv stats data.nsv
-rows: 3
-cells: 12
-min_arity: 4
-max_arity: 4
-is_table: true
-max_cell_bytes: 1
+rows
+3
+
+cells
+12
+
+min_arity
+4
+
+max_arity
+4
+
+is_table
+true
+
+max_cell_bytes
+1
 ```
