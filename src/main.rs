@@ -162,7 +162,7 @@ fn process_line_endings(data: &[u8], start: usize, quiet: bool) -> Result<Vec<u8
     Ok(output)
 }
 
-/// Print structural statistics about NSV data.
+/// Print structural statistics about NSV data, in NSV format.
 ///
 /// Silently sanitizes (strip BOM, normalize CRLF) before parsing.
 /// No warnings or validation — just stats to stdout.
@@ -191,12 +191,15 @@ fn stats(file: Option<String>) {
         .max()
         .unwrap_or(0);
 
-    println!("rows: {}", num_rows);
-    println!("cells: {}", cells);
-    println!("min_arity: {}", min_arity);
-    println!("max_arity: {}", max_arity);
-    println!("is_table: {}", is_table);
-    println!("max_cell_bytes: {}", max_cell_bytes);
+    let data = vec![
+        vec!["rows".to_string(), num_rows.to_string()],
+        vec!["cells".to_string(), cells.to_string()],
+        vec!["min_arity".to_string(), min_arity.to_string()],
+        vec!["max_arity".to_string(), max_arity.to_string()],
+        vec!["is_table".to_string(), is_table.to_string()],
+        vec!["max_cell_bytes".to_string(), max_cell_bytes.to_string()],
+    ];
+    print!("{}", nsv::encode(&data));
 }
 
 /// Validate NSV data. Returns the process exit code.
