@@ -51,7 +51,6 @@ enum Commands {
     },
 
     /// Apply NSV escaping to each line (collapse one structural dimension)
-    #[command(alias = "l")]
     Lift {
         /// Input file (reads from stdin if omitted or "-")
         #[arg(value_name = "FILE")]
@@ -59,7 +58,6 @@ enum Commands {
     },
 
     /// Apply NSV unescaping to each line (restore one structural dimension)
-    #[command(alias = "u")]
     Unlift {
         /// Input file (reads from stdin if omitted or "-")
         #[arg(value_name = "FILE")]

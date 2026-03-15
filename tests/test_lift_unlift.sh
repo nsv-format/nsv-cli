@@ -138,26 +138,6 @@ else
     FAIL=$((FAIL + 1))
 fi
 
-# ── Alias test ──
-
-cargo run --quiet -- l "$TMPDIR/plain" > "$TMPDIR/alias_l" 2>/dev/null
-if cmp -s "$TMPDIR/alias_l" "$TMPDIR/plain"; then
-    echo "PASS: lift alias 'l'"
-    PASS=$((PASS + 1))
-else
-    echo "FAIL: lift alias 'l'"
-    FAIL=$((FAIL + 1))
-fi
-
-cargo run --quiet -- u "$TMPDIR/plain" > "$TMPDIR/alias_u" 2>/dev/null
-if cmp -s "$TMPDIR/alias_u" "$TMPDIR/plain"; then
-    echo "PASS: unlift alias 'u'"
-    PASS=$((PASS + 1))
-else
-    echo "FAIL: unlift alias 'u'"
-    FAIL=$((FAIL + 1))
-fi
-
 # ── Roundtrip with existing NSV fixtures ──
 
 F=tests/fixtures
