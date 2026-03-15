@@ -50,6 +50,22 @@ enum Commands {
         file: Option<String>,
     },
 
+    /// Apply NSV escaping to each line (collapse one structural dimension)
+    #[command(alias = "l")]
+    Lift {
+        /// Input file (reads from stdin if omitted or "-")
+        #[arg(value_name = "FILE")]
+        file: Option<String>,
+    },
+
+    /// Apply NSV unescaping to each line (restore one structural dimension)
+    #[command(alias = "u")]
+    Unlift {
+        /// Input file (reads from stdin if omitted or "-")
+        #[arg(value_name = "FILE")]
+        file: Option<String>,
+    },
+
 }
 
 fn main() {
@@ -74,6 +90,18 @@ fn main() {
         }
         Commands::Transpose { file } => {
             if let Err(e) = transpose(file) {
+                eprintln!("error: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Commands::Lift { file } => {
+            if let Err(e) = lift(file) {
+                eprintln!("error: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Commands::Unlift { file } => {
+            if let Err(e) = unlift(file) {
                 eprintln!("error: {}", e);
                 std::process::exit(1);
             }
@@ -357,6 +385,45 @@ fn transpose(file: Option<String>) -> Result<(), String> {
             out.write_all(row[col]).map_err(|e| e.to_string())?;
             out.write_all(b"\n").map_err(|e| e.to_string())?;
         }
+        out.write_all(b"\n").map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Apply NSV escaping to each line.
+///
+/// Treats input as raw lines (split on LF), applies `escape` to each,
+/// and writes the escaped lines back out with LF terminators.
+/// This is the line-level equivalent of the lift operation from the ENSV spec.
+fn lift(file: Option<String>) -> Result<(), String> {
+    let data = read_input(&file);
+    if data.is_empty() {
+        return Ok(());
+    }
+    // Trim trailing LF — it's a terminator, not a separator creating an empty line
+    let body = if data.ends_with(b"\n") { &data[..data.len() - 1] } else { &data[..] };
+    let mut out = io::BufWriter::new(io::stdout().lock());
+    for line in body.split(|&b| b == b'\n') {
+        out.write_all(&nsv::escape_bytes(line)).map_err(|e| e.to_string())?;
+        out.write_all(b"\n").map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// Apply NSV unescaping to each line.
+///
+/// Treats input as raw lines (split on LF), applies `unescape` to each,
+/// and writes the unescaped lines back out with LF terminators.
+/// This is the line-level equivalent of the unlift operation from the ENSV spec.
+fn unlift(file: Option<String>) -> Result<(), String> {
+    let data = read_input(&file);
+    if data.is_empty() {
+        return Ok(());
+    }
+    let body = if data.ends_with(b"\n") { &data[..data.len() - 1] } else { &data[..] };
+    let mut out = io::BufWriter::new(io::stdout().lock());
+    for line in body.split(|&b| b == b'\n') {
+        out.write_all(&nsv::unescape_bytes(line)).map_err(|e| e.to_string())?;
         out.write_all(b"\n").map_err(|e| e.to_string())?;
     }
     Ok(())
