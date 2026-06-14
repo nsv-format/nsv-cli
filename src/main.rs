@@ -112,14 +112,23 @@ fn read_input(file: &Option<String>) -> Vec<u8> {
     match file.as_deref() {
         Some(path) if path != "-" => {
             File::open(path)
-                .unwrap_or_else(|e| panic!("cannot open '{}': {}", path, e))
+                .unwrap_or_else(|e| {
+                    eprintln!("cannot open '{}': {}", path, e);
+                    std::process::exit(1);
+                })
                 .read_to_end(&mut data)
-                .unwrap_or_else(|e| panic!("read error: {}", e));
+                .unwrap_or_else(|e| {
+                    eprintln!("read error: {}", e);
+                    std::process::exit(1);
+                });
         }
         _ => {
             io::stdin()
                 .read_to_end(&mut data)
-                .unwrap_or_else(|e| panic!("read error: {}", e));
+                .unwrap_or_else(|e| {
+                    eprintln!("read error: {}", e);
+                    std::process::exit(1);
+                });
         }
     };
     data
