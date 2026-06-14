@@ -149,9 +149,9 @@ checksum = "88904434abc2901f197fe8cc55f0445e7ded921dba5911dad2e2b39b48e663c4"
 
 [[package]]
 name = "nsv"
-version = "0.0.9"
+version = "0.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f19a5bbdca1ac496ba07eaf420054683511768050c10cc108f35cf3d5a2600c"
+checksum = "93346cdea6ac19564cbaf1234995610445fd5ecc83f8f29818e442f1c245b8bd"
 dependencies = [
  "memchr",
  "rayon",
@@ -159,7 +159,7 @@ dependencies = [
 
 [[package]]
 name = "nsv-cli"
-version = "0.0.7"
+version = "0.0.8"
 dependencies = [
  "clap",
  "nsv",
